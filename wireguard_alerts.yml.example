@@ -1,0 +1,86 @@
+# Example Prometheus alert rules for WireGuard Exporter
+
+groups:
+  - name: wireguard_alerts
+    interval: 30s
+    rules:
+      # Alert if exporter is down
+      - alert: WireGuardExporterDown
+        expr: wireguard_scrape_success == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "WireGuard Exporter is down"
+          description: "WireGuard Exporter on {{ $labels.instance }} has been down for more than 5 minutes."
+
+      # Alert if no WireGuard interfaces are found
+      - alert: NoWireGuardInterfaces
+        expr: wireguard_interfaces_total == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No WireGuard interfaces detected"
+          description: "WireGuard Exporter on {{ $labels.instance }} reports 0 interfaces for more than 5 minutes."
+
+      # Alert if peer handshake is too old (more than 5 minutes)
+      - alert: WireGuardPeerHandshakeOld
+        expr: wireguard_duration_since_latest_handshake > 300
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WireGuard peer handshake is old"
+          description: "Peer {{ $labels.alias }} ({{ $labels.peer }}) on interface {{ $labels.interface }} hasn't had a handshake in {{ $value }} seconds."
+
+      # Alert if peer handshake is very old (more than 1 hour)
+      - alert: WireGuardPeerHandshakeCritical
+        expr: wireguard_duration_since_latest_handshake > 3600
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "WireGuard peer handshake is critical"
+          description: "Peer {{ $labels.alias }} ({{ $labels.peer }}) on interface {{ $labels.interface }} hasn't had a handshake in {{ $value }} seconds. Connection may be down."
+
+      # Alert if scrape duration is too high
+      - alert: WireGuardScrapeDurationHigh
+        expr: wireguard_scrape_duration_milliseconds > 5000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WireGuard scrape duration is high"
+          description: "WireGuard Exporter on {{ $labels.instance }} is taking {{ $value }}ms to scrape metrics."
+
+      # Alert if number of peers changes significantly
+      - alert: WireGuardPeerCountChanged
+        expr: abs(delta(wireguard_peers_total[5m])) > 0
+        for: 2m
+        labels:
+          severity: info
+        annotations:
+          summary: "WireGuard peer count changed"
+          description: "Number of peers on interface {{ $labels.interface }} has changed."
+
+      # Alert if high bandwidth usage (more than 1GB/hour per peer)
+      - alert: WireGuardHighBandwidth
+        expr: rate(wireguard_peer_bytes_total[1h]) > 1073741824
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "High WireGuard bandwidth usage"
+          description: "Peer {{ $labels.alias }} ({{ $labels.peer }}) on interface {{ $labels.interface }} is using high bandwidth: {{ $value | humanize }}B/s in {{ $labels.direction }} direction."
+
+      # Alert if peer has no traffic for extended period
+      - alert: WireGuardPeerNoTraffic
+        expr: rate(wireguard_peer_bytes_total[1h]) == 0 and wireguard_peer_bytes_total > 0
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "WireGuard peer has no traffic"
+          description: "Peer {{ $labels.alias }} ({{ $labels.peer }}) on interface {{ $labels.interface }} has had no traffic for 2 hours in {{ $labels.direction }} direction."
+
